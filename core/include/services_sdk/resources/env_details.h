@@ -43,6 +43,7 @@ private:
 
     std::string token;
     std::string agent_namespace;
+    time_t last_token_refresh = 0;
     EnvType env_type = EnvType::LINUX;
 };
 

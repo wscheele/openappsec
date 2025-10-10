@@ -17,6 +17,7 @@
 #include "debug.h"
 
 #include <sys/stat.h>
+#include <ctime>
 
 using namespace std;
 
@@ -58,6 +59,20 @@ EnvDetails::getEnvType()
 string
 EnvDetails::getToken()
 {
+    // Re-read token from file periodically to handle Kubernetes token refresh.
+    // In K8s 1.21+, service account tokens are time-bound and auto-refreshed
+    // by kubelet at ~80% of token lifetime. We refresh every 2 minutes to ensure
+    // we pick up the new token well before the old one expires.
+    time_t now = time(nullptr);
+
+    if (now - last_token_refresh > 120) {  // Refresh every 2 minutes
+        string fresh_token = retrieveToken();
+        if (!fresh_token.empty()) {
+            token = fresh_token;
+        }
+        last_token_refresh = now;
+    }
+
     return token;
 }
 
