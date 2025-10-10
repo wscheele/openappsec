@@ -20,9 +20,9 @@ policy_pid=uninitialized
 function runGetResourceListener()
 {
     if [ "$1" = "ingress" ]; then
-        curl --cacert ${CACERT} --header "Authorization: Bearer ${TOKEN}" -X GET ${APISERVER}/apis/networking.k8s.io/v1/ingresses?watch=1 | ${UPON_UPDATE} &
+        curl --silent --show-error --cacert ${CACERT} --header "Authorization: Bearer ${TOKEN}" -X GET ${APISERVER}/apis/networking.k8s.io/v1/ingresses?watch=1 | ${UPON_UPDATE} &
     else
-        curl --cacert ${CACERT} --header "Authorization: Bearer ${TOKEN}" -X GET ${APISERVER}/apis/openappsec.io/v1beta1/${1}?watch=1 | ${UPON_UPDATE} &
+        curl --silent --show-error --cacert ${CACERT} --header "Authorization: Bearer ${TOKEN}" -X GET ${APISERVER}/apis/openappsec.io/v1beta1/${1}?watch=1 | ${UPON_UPDATE} &
     fi
 }
 
