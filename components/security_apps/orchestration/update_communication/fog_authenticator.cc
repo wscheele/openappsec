@@ -595,6 +595,22 @@ FogAuthenticator::authenticateAgent()
 {
     dbgFlow(D_ORCHESTRATOR) << "Authenticating the agent";
     const int min_expiration_time = 10;
+
+    // Bug Fix #1: Validate cached token expiration
+    // If we have a cached token, check if it's expired and invalidate it if so
+    if (access_token.ok()) {
+        auto remaining_time = access_token.unpack().getRemainingTime();
+        if (remaining_time.count() <= 0) {
+            dbgInfo(D_ORCHESTRATOR)
+                << "Cached access token has expired (remaining time: " << remaining_time.count()
+                << " seconds). Invalidating token to force refresh.";
+            access_token = genError("Cached token expired");
+        } else {
+            dbgDebug(D_ORCHESTRATOR)
+                << "Cached access token still valid. Remaining time: " << remaining_time.count() << " seconds";
+        }
+    }
+
     if (!credentials.ok()) {
         dbgDebug(D_ORCHESTRATOR) << "Getting Agent credentials.";
 
@@ -665,7 +681,17 @@ FogAuthenticator::authenticateAgent()
         mainloop->yield(chrono::seconds(min_expiration_time + 1));
     }
 
-    if (!access_token.ok()) return genError(access_token.getErr());
+    // Bug Fix #2: Remove blocking startup check
+    // Don't block orchestration startup if token acquisition fails
+    // The background thread will continue trying to get a valid token
+    // Meanwhile, hybrid mode will use local K8s CRDs for policy
+    if (!access_token.ok()) {
+        dbgInfo(D_ORCHESTRATOR)
+            << "Access token not yet available: " << access_token.getErr()
+            << ". Orchestration will start using local policies. "
+            << "Background thread will continue attempting to acquire FOG token.";
+    }
+
     return Maybe<void>();
 }
 
