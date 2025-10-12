@@ -1312,7 +1312,7 @@ PolicyMakerUtils::createThreatPreventionPracticeSections(
             policy,
             rule_config.getContext()
         );
-        users_identifiers[rule_annotations[AnnotationTypes::SOURCE_IDENTIFIERS]] = user_identifiers;
+        users_identifiers[asset_name] = user_identifiers;
         current_identifier = user_identifiers.getIdentifier();
         current_identifier_value = user_identifiers.getIdentifierValue();
     }
@@ -1542,7 +1542,7 @@ PolicyMakerUtils::createPolicyElementsByRule(
                 policy,
                 rule_config.getContext()
             );
-            users_identifiers[rule_annotations[AnnotationTypes::SOURCE_IDENTIFIERS]] = user_identifiers;
+            users_identifiers[full_url] = user_identifiers;
         }
 
         if (!web_apps.count(rule_config.getAssetName())) {
