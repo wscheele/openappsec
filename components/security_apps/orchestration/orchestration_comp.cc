@@ -1865,8 +1865,17 @@ private:
     {
         loadExistingPolicy();
         sleep_interval = policy.getErrorSleepInterval();
-        Maybe<void> registration_status(genError("Not running yet."));
-        while (!(registration_status = registerToTheFog()).ok()) {
+
+        // Bug Fix: Remove blocking while loop
+        // Instead of blocking startup until FOG registration succeeds, attempt once
+        // and continue. Background token refresh will keep trying. Hybrid mode will
+        // gracefully fall back to local K8s CRDs if FOG is unavailable.
+        Maybe<void> registration_status = registerToTheFog();
+        if (!registration_status.ok()) {
+            dbgWarning(D_ORCHESTRATOR)
+                << "Initial FOG registration failed: " << registration_status.getErr()
+                << ". Orchestration will continue with local policies. "
+                << "Background thread will keep attempting FOG authentication.";
             UpdatesProcessEvent(
                 UpdatesProcessResult::FAILED,
                 UpdatesConfigType::GENERAL,
@@ -1874,20 +1883,10 @@ private:
                 "",
                 registration_status.getErr()
             ).notify();
-            sleep_interval = getConfigurationWithDefault<int>(
-                30,
-                "orchestration",
-                "Default sleep interval"
-            );
-            sleep_interval = calcSleepInterval(sleep_interval);
-            dbgWarning(D_ORCHESTRATOR)
-                << "Orchestration not started yet. Status: "
-                << registration_status.getErr()
-                << " Next attempt to start the orchestration will be in: "
-                << sleep_interval
-                << " seconds";
-            Singleton::Consume<I_MainLoop>::by<OrchestrationComp>()->yield(seconds(sleep_interval));
+        } else {
+            dbgInfo(D_ORCHESTRATOR) << "FOG registration successful";
         }
+
         failure_count = 0;
 
         Singleton::Consume<I_MainLoop>::by<OrchestrationComp>()->yield(chrono::seconds(1));
