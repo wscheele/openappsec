@@ -980,8 +980,13 @@ createMultiRulesSections(
     const string &exception_name,
     const vector<InnerException> &exceptions)
 {
-    string behaviorId = exceptions.empty() ? "" : exceptions[0].getBehaviorId();
-    ParametersSection exception_param = ParametersSection(behaviorId, exception_name);
+    vector<ParametersSection> exceptions_result;
+    for (const auto &inner_exception : exceptions) {
+        exceptions_result.push_back(ParametersSection(inner_exception.getBehaviorId(), exception_name));
+    }
+    if (exceptions_result.empty()) {
+        exceptions_result.push_back(ParametersSection("", exception_name));
+    }
 
     vector<PracticeSection> practices;
     if (!practice_id.empty()) {
@@ -1011,7 +1016,7 @@ createMultiRulesSections(
         port,
         uri,
         practices,
-        {exception_param},
+        exceptions_result,
         triggers
     );
 
