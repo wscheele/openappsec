@@ -218,7 +218,8 @@ private:
         const std::string &uri,
         const std::string &default_mode,
         const V1beta2AppsecLinuxPolicy &policy,
-        std::map<AnnotationTypes, std::string> &rule_annotations
+        std::map<AnnotationTypes, std::string> &rule_annotations,
+        const std::vector<InnerException> &rule_inner_exceptions
     );
 
     template<class T, class R>

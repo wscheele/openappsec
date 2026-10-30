@@ -1274,7 +1274,8 @@ PolicyMakerUtils::createThreatPreventionPracticeSections(
     const string &uri,
     const string &default_mode,
     const V1beta2AppsecLinuxPolicy &policy,
-    map<AnnotationTypes, string> &rule_annotations)
+    map<AnnotationTypes, string> &rule_annotations,
+    const vector<InnerException> &rule_inner_exceptions)
 {
     if (rule_annotations[AnnotationTypes::PRACTICE].empty() ||
         web_apps.count(asset_name)
@@ -1306,7 +1307,7 @@ PolicyMakerUtils::createThreatPreventionPracticeSections(
         "WebUserResponse",
         asset_name,
         rule_annotations[AnnotationTypes::EXCEPTION],
-        inner_exceptions[rule_annotations[AnnotationTypes::EXCEPTION]]
+        rule_inner_exceptions
     );
     rules_config[rule_config.getAssetName()] = rule_config;
 
@@ -1373,7 +1374,7 @@ PolicyMakerUtils::createThreatPreventionPracticeSections(
             asset_name,
             default_mode,
             rule_annotations,
-            inner_exceptions[rule_annotations[AnnotationTypes::EXCEPTION]]);
+            rule_inner_exceptions);
     }
 
 }
@@ -1608,16 +1609,17 @@ PolicyMakerUtils::createPolicyElementsByRule<V1beta2AppsecLinuxPolicy, NewParsed
             );
     }
 
-    if (
-        rule_annotations.count(AnnotationTypes::EXCEPTION) > 0 &&
-        !rule_annotations[AnnotationTypes::EXCEPTION].empty() &&
-        !inner_exceptions.count(rule_annotations[AnnotationTypes::EXCEPTION])
-    ) {
-        inner_exceptions[rule_annotations[AnnotationTypes::EXCEPTION]] =
-            createExceptionSection<V1beta2AppsecLinuxPolicy>(
-                rule_annotations[AnnotationTypes::EXCEPTION],
-                policy
-            );
+    // A rule can reference several exception resources; load all of them, not only the first one.
+    vector<InnerException> rule_inner_exceptions;
+    set<string> rule_exception_names;
+    for (const auto &exception_name : extractExceptionAnnotationNames(rule, default_rule, policy_name)) {
+        if (!rule_exception_names.insert(exception_name).second) continue;
+        if (!inner_exceptions.count(exception_name)) {
+            inner_exceptions[exception_name] =
+                createExceptionSection<V1beta2AppsecLinuxPolicy>(exception_name, policy);
+        }
+        const auto &exceptions = inner_exceptions[exception_name];
+        rule_inner_exceptions.insert(rule_inner_exceptions.end(), exceptions.begin(), exceptions.end());
     }
 
     if (
@@ -1670,7 +1672,8 @@ PolicyMakerUtils::createPolicyElementsByRule<V1beta2AppsecLinuxPolicy, NewParsed
         std::get<2>(splited_host_name),
         rule.getMode(),
         policy,
-        rule_annotations
+        rule_annotations,
+        rule_inner_exceptions
     );
 
     upgrade_settings = policy.getAppSecAutoUpgradeSpec();
