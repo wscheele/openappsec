@@ -72,10 +72,16 @@ size_t ParserGzip::push(const char *buf, size_t len) {
             break;
         }
 
-        if (res.num_output_bytes != 0 &&
-                m_receiver.onValue(reinterpret_cast<const char *>(res.output), res.num_output_bytes) != 0) {
-            m_state = s_error;
-            break;
+        {
+            // res.output is a malloc'd copy owned by us (only valid when res.ok); onValue copies what it needs
+            int value_rc = res.num_output_bytes != 0
+                ? m_receiver.onValue(reinterpret_cast<const char *>(res.output), res.num_output_bytes)
+                : 0;
+            free(res.output);
+            if (value_rc != 0) {
+                m_state = s_error;
+                break;
+            }
         }
 
         if (res.is_last_chunk) {
