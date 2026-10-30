@@ -587,8 +587,9 @@ K8sPolicyUtils::createPolicyFromIngress(
     }
 
     for (const IngressDefinedRule &rule : item.getSpec().getRules()) {
-        string host = rule.getHost();
         for (const IngressRulePath &uri : rule.getPathsWrapper().getRulePaths()) {
+            // Each path is its own asset: start from the bare host for every path
+            string host = rule.getHost();
             if (uri.getPath() != "/") {
                 host = host + uri.getPath();
             }
