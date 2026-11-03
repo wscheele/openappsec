@@ -1507,8 +1507,14 @@ private:
             nginx_attachment_event.addTrafficVerdictCounter(nginxAttachmentEvent::trafficVerdict::DROP);
             verdict_to_send.modification_count = 1;
             ScopedContext ctx;
-            set<string> triggers_set{verdict.getWebUserResponseID()};
-            ctx.registerValue<set<GenericConfigId>>(TriggerMatcher::ctx_key, triggers_set);
+            // An empty ID (e.g. WAAP in local policy, which has no webUserResponsePerPractice) must not be
+            // registered: a {""} context matches no trigger, so the rule's own web user response would be
+            // ignored in favor of the default block page.
+            const string web_user_response_id = verdict.getWebUserResponseID();
+            if (!web_user_response_id.empty()) {
+                set<string> triggers_set{web_user_response_id};
+                ctx.registerValue<set<GenericConfigId>>(TriggerMatcher::ctx_key, triggers_set);
+            }
             auto web_trigger_config = getConfiguration<WebTriggerConf>("rulebase", "webUserResponse");
             WebTriggerConf web_trigger_conf = web_trigger_config.ok() ?
                 web_trigger_config.unpack() : WebTriggerConf::default_trigger_conf;
