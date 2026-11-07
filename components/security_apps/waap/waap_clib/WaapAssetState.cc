@@ -193,11 +193,24 @@ WaapAssetState::WaapAssetState(
         m_filtersMngr->reset();
     }
 
+    // Normalizes text to ASCII:
+    // - UTF-8 sequences (including overlong ones, which buggy decoders accept) that decode to ASCII are
+    //   replaced by that character, and ASCII look-alikes (isSpecialUnicode) by their ASCII equivalent.
+    // - Invisible code points (isIgnorableUnicode) are deleted, so they can't split an attack keyword.
+    // - Any other non-ASCII code point, and any byte that isn't part of a complete UTF-8 sequence (e.g. an
+    //   ISO-8859-1 letter), becomes a space; a run of them becomes a single space. Deleting them instead
+    //   would merge the surrounding letters into new words ("Läs mer" into "ls mer", an RCE keyword).
+    // The output is never longer than the input.
     void filterUnicode(std::string & text) {
         std::string::iterator it = text.begin();
         std::string::iterator result = it;
         uint32_t acc = 0;
         int bytes_left = 0;
+        auto putSpace = [&text, &result]() {
+            if (result == text.begin() || *(result - 1) != ' ') {
+                *result++ = ' ';
+            }
+        };
 
         for (; it != text.end(); ++it) {
             unsigned char ch = (unsigned char)(*it);
@@ -207,6 +220,10 @@ WaapAssetState::WaapAssetState(
             // In our implementation we do remove leading byte in UTF8 encoding (such as 0xc0),
             // but strip down the following bytes (with high bits 01).
             if (ch <= 127) {
+                if (bytes_left > 0) {
+                    // incomplete UTF-8 sequence (e.g. a single ISO-8859-1 byte): a non-ASCII character
+                    putSpace();
+                }
                 *result++ = ch;
                 bytes_left = 0; // any character <= 127 stops collecting UTF8 code
             }
@@ -214,10 +231,7 @@ WaapAssetState::WaapAssetState(
                 if (bytes_left == 0) {
                     // collect utf8 code
                     if ((ch & 0xE0) == 0xC0) { // 110X XXXX  two bytes follow
-
-                        if ((ch & 0x1E) != 0) {
-                            acc = ch & 31;
-                        }
+                        acc = ch & 31;
                         bytes_left = 1;
                     }
                     else if ((ch & 0xF0) == 0xE0) { // 1110 XXXX  three bytes follow
@@ -237,8 +251,9 @@ WaapAssetState::WaapAssetState(
                         bytes_left = 5;
                     }
                     else {
-                        // error
+                        // error: not a UTF-8 lead byte (e.g. an ISO-8859-1 letter)
                         bytes_left = 0;
+                        putSpace();
                     }
                 }
                 else if (bytes_left > 0) {
@@ -255,10 +270,18 @@ WaapAssetState::WaapAssetState(
                         else if (isSpecialUnicode(acc)) {
                             *result++ = convertSpecialUnicode(acc);
                         }
+                        else if (!isIgnorableUnicode(acc)) {
+                            putSpace();
+                        }
                         acc = 0;
                     }
                 }
             }
+        }
+
+        if (bytes_left > 0) {
+            // text ends in an incomplete UTF-8 sequence
+            putSpace();
         }
 
         text.erase(result, text.end());
@@ -434,9 +457,9 @@ WaapAssetState::WaapAssetState(
         dbgTrace(D_WAAP_SAMPLE_PREPROCESS) << "unescape: (0) '" << text << "'";
 
         fixBreakingSpace(text);
-        // 1. remove all unicode characters from string. Basically,
-        // remove all characters whose ASCII code is >=128.
-        // Python equivalent: text.encode('ascii',errors='ignore')
+        // 1. normalize all unicode characters to ASCII (see filterUnicode: non-ASCII letters become a space,
+        // invisible characters are removed).
+        // Python equivalent: re.sub(r'[^\x00-\x7F]+',' ', text).encode('ascii',errors='ignore')
         filterUnicode(text);
         dbgTrace(D_WAAP_SAMPLE_PREPROCESS) << "unescape: (1) '" << text << "'";
 

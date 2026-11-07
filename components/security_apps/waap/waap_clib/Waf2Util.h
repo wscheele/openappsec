@@ -808,6 +808,22 @@ inline bool isSpecialUnicode(uint32_t code) {
             || 0xEFC8 == code || 0xF025 == code;
 }
 
+// Invisible code points (format characters, combining marks, variation selectors, tags). These are deleted
+// during normalization, so they can't be used to split an attack keyword ("sel​ect" stays "select").
+// All other non-ASCII code points (letters such as a-umlaut) are replaced with a space instead: deleting
+// them would merge the surrounding ASCII letters into new words, e.g. Swedish/German "lös" into "ls".
+inline bool isIgnorableUnicode(uint32_t code) {
+    return 0x00AD == code                       // soft hyphen
+            || (code >= 0x0300 && code <= 0x036F) // combining diacritical marks (decomposed accents)
+            || 0x034F == code || 0x061C == code || 0x180E == code
+            || (code >= 0x200B && code <= 0x200F) // zero-width space/joiners, LRM/RLM
+            || (code >= 0x202A && code <= 0x202E) // bidi embedding/override
+            || (code >= 0x2060 && code <= 0x206F) // word joiner, invisible operators, bidi isolates
+            || (code >= 0xFE00 && code <= 0xFE0F) // variation selectors
+            || 0xFEFF == code                     // zero-width no-break space / BOM
+            || (code >= 0xE0000 && code <= 0xE0FFF); // tags, variation selectors supplement
+}
+
 inline char convertSpecialUnicode(uint32_t code) {
     if (isUnicodeHalfAndFullWidthRange(code)) {
         return convertFromUnicodeHalfAndFullWidthRange(code);

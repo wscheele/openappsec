@@ -743,12 +743,16 @@ void unescapeUnicode(string& text) {
                 digitsAnticipated--;
 
                 if (digitsAnticipated == 0) {
-                    // only output ASCII codes <= 127. "swallow" all unicode.
+                    // only output ASCII codes <= 127, look-alikes as their ASCII equivalent. Other unicode
+                    // becomes a space (invisible characters are swallowed), see filterUnicode.
                     if (code <= 127) {
                         *result++ = (char)code;
                     }
                     else if (isSpecialUnicode(code)) {
                         *result++ = convertSpecialUnicode(code);
+                    }
+                    else if (!isIgnorableUnicode(code)) {
+                        *result++ = ' ';
                     }
 
                     if (pAcc) {
@@ -846,12 +850,15 @@ void unescapeUnicode(string& text) {
 
     // Output code if we just finished decoding an escape sequence succesully and reached end of string
     if (state == STATE_ESCAPE_U && digitsAnticipated == 0 && result < text.end()) {
-        // only output ASCII codes <= 127. "swallow" all unicode.
+        // only output ASCII codes <= 127, see above.
         if (code <= 127) {
             *result++ = (char)code;
         }
         else if (isSpecialUnicode(code)) {
             *result++ = convertSpecialUnicode(code);
+        }
+        else if (!isIgnorableUnicode(code)) {
+            *result++ = ' ';
         }
 
         if (pAcc) {
